@@ -1,4 +1,5 @@
 use error::JellyError;
+use log::debug;
 use reqwest::Url;
 use reqwest::blocking::Client as HttpClient;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
@@ -138,7 +139,7 @@ impl JellyClient {
     ) -> Result<T, JellyError> {
         let path = path.trim_start_matches("/");
         let url = self.base_url.join(&format!("{}?{}", path, query))?;
-        println!("GET {}", url);
+        debug!("GET {}", url);
         let response = self.http.get(url.clone()).send()?;
         let status = response.status();
         let result: Result<T, JellyError> = if status.is_success() {
@@ -195,6 +196,10 @@ impl JellyClient {
 
         loop {
             let page = self.list_conversations(&page_options)?;
+            debug!(
+                "Discovered {} conversations on page",
+                page.conversations.len()
+            );
             conversations.extend(page.conversations);
 
             if let Some(next_cursor) = page
