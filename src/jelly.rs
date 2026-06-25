@@ -2,12 +2,13 @@ use error::JellyError;
 use reqwest::Url;
 use reqwest::blocking::Client as HttpClient;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod error {
     use crate::jelly::JellyAPIError;
+    use reqwest::Url;
     use thiserror::Error;
 
     #[derive(Debug, Error)]
@@ -18,7 +19,7 @@ pub mod error {
         #[error("api error ({status}) on {endpoint}: {source}")]
         Api {
             status: reqwest::StatusCode,
-            endpoint: String,
+            endpoint: Url,
             body: String,
             #[source]
             source: JellyAPIError,
@@ -26,6 +27,12 @@ pub mod error {
 
         #[error("invalid header")]
         InvalidHeader,
+
+        #[error("invalid url: {0}")]
+        InvalidUrl(#[from] url::ParseError),
+
+        #[error("url encoding error: {0}")]
+        UrlEncoding(#[from] serde_urlencoded::ser::Error),
     }
 }
 
@@ -65,28 +72,21 @@ pub struct ConversationLabel {
     pub color: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConversationStatus {
+    #[serde(rename = "open")]
     Open,
+    #[serde(rename = "archived")]
     Archived,
+    #[serde(rename = "snoozed")]
     Snoozed,
+    #[serde(rename = "spam")]
     Spam,
+    #[serde(rename = "trash")]
     Trash,
 }
 
-impl ConversationStatus {
-    pub fn as_api_str(self) -> &'static str {
-        match self {
-            Self::Open => "open",
-            Self::Archived => "archived",
-            Self::Snoozed => "snoozed",
-            Self::Spam => "spam",
-            Self::Trash => "trash",
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct ConversationListOptions {
     pub status: Option<ConversationStatus>,
     pub label_id: Option<String>,
@@ -98,7 +98,7 @@ pub struct ConversationListOptions {
 #[derive(Debug, Deserialize)]
 pub struct Conversation {
     pub id: String,
-    pub status: String,
+    pub status: ConversationStatus,
     pub labels: Vec<ConversationLabel>,
 }
 
@@ -110,15 +110,12 @@ pub struct ConversationsPage {
 
 #[derive(Clone)]
 pub struct JellyClient {
-    base_url: String,
+    base_url: Url,
     http: HttpClient,
 }
 
 impl JellyClient {
-    pub fn new(
-        base_url: impl Into<String>,
-        api_key: impl Into<String>,
-    ) -> Result<Self, JellyError> {
+    pub fn new(base_url: impl Into<Url>, api_key: impl Into<String>) -> Result<Self, JellyError> {
         let mut headers = HeaderMap::new();
 
         let mut auth_value = HeaderValue::from_str(&format!("Bearer {}", api_key.into()))
@@ -137,10 +134,10 @@ impl JellyClient {
     fn get_with_query<T: DeserializeOwned>(
         &self,
         path: &str,
-        query: &[(&str, String)],
+        query: String,
     ) -> Result<T, JellyError> {
-        let url = self.url_with_query(path, query);
-        let response = self.http.get(&url).send()?;
+        let url = self.base_url.join(&format!("{}?{}", path, query))?;
+        let response = self.http.get(url.clone()).send()?;
         let status = response.status();
         let result: Result<T, JellyError> = if status.is_success() {
             Ok(response.json::<T>()?)
@@ -160,7 +157,7 @@ impl JellyClient {
         &self,
         options: &ConversationListOptions,
     ) -> Result<ConversationsPage, JellyError> {
-        self.get_with_query("/conversations", &conversation_query_params(options))
+        self.get_with_query("/conversations", serde_urlencoded::to_string(options)?)
     }
 
     pub fn count_conversations(
@@ -210,39 +207,4 @@ impl JellyClient {
 
         Ok(conversations)
     }
-
-    fn url(&self, path: &str) -> String {
-        format!(
-            "{}/{}",
-            self.base_url.trim_end_matches('/'),
-            path.trim_start_matches('/')
-        )
-    }
-
-    fn url_with_query(&self, path: &str, query: &[(&str, String)]) -> String {
-        let url = self.url(path);
-        Url::parse_with_params(&url, query)
-            .map(|url| url.to_string())
-            .unwrap_or(url)
-    }
-}
-
-fn conversation_query_params(options: &ConversationListOptions) -> Vec<(&str, String)> {
-    let mut query = Vec::new();
-    if let Some(status) = options.status {
-        query.push(("status", status.as_api_str().to_owned()));
-    }
-    if let Some(label_id) = options.label_id.as_ref() {
-        query.push(("label_id", label_id.clone()));
-    }
-    if let Some(mailbox_id) = options.mailbox_id.as_ref() {
-        query.push(("mailbox_id", mailbox_id.clone()));
-    }
-    if let Some(limit) = options.limit {
-        query.push(("limit", limit.to_string()));
-    }
-    if let Some(cursor) = options.cursor.as_ref() {
-        query.push(("cursor", cursor.clone()));
-    }
-    query
 }

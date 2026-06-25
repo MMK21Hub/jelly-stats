@@ -1,11 +1,14 @@
 use anyhow::{Context, Ok, Result};
-use jelly_stats::jelly::{Conversation, ConversationListOptions, JellyClient};
+use jelly_stats::jelly::{Conversation, ConversationListOptions, ConversationStatus, JellyClient};
+use url::Url;
 
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
 
     let client = JellyClient::new(
-        std::env::var("JELLY_API_URL").unwrap_or("https://app.letsjelly.com/api".to_string()),
+        Url::parse(
+            &std::env::var("JELLY_API_URL").unwrap_or("https://app.letsjelly.com/api".into()),
+        )?,
         std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
     )?;
 
@@ -13,6 +16,7 @@ fn main() -> Result<()> {
         .all_conversations(&ConversationListOptions {
             // label_id: Some("".to_string()),
             mailbox_id: Some("stardance".to_string()),
+            status: Some(ConversationStatus::Open),
             ..Default::default()
         })?
         .into_iter()
