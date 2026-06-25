@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
     thread,
@@ -7,6 +8,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+use chrono::{NaiveDate, Utc};
 use jelly_stats::jelly::{Conversation, ConversationListOptions, ConversationStatus, JellyClient};
 use log::info;
 use serde::Serialize;
@@ -16,6 +18,8 @@ use url::Url;
 struct Stats {
     open_conversations: u64,
     total_conversations: u64,
+    new_conversations_last_24h: u64,
+    new_conversations_per_day: BTreeMap<NaiveDate, u64>,
 }
 
 type SharedStats = Arc<RwLock<Option<Stats>>>;
@@ -76,6 +80,19 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             .filter(|c| c.labels.len() == 0)
             .collect();
 
+        let now = Utc::now();
+        let mut new_conversations_per_day = BTreeMap::new();
+        let mut new_conversations_last_24h = 0;
+        for convo in conversations.iter() {
+            // Bucket conversations into the date they were created
+            let day = convo.created_at.date_naive();
+            *new_conversations_per_day.entry(day).or_insert(0) += 1;
+            // Also track the new convos in the past 24h
+            if now - convo.created_at < chrono::Duration::hours(24) {
+                new_conversations_last_24h += 1;
+            }
+        }
+
         {
             let new_stats = Stats {
                 open_conversations: conversations
@@ -83,6 +100,8 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                     .filter(|c| c.status == ConversationStatus::Open)
                     .count() as u64,
                 total_conversations: conversations.len() as u64,
+                new_conversations_last_24h,
+                new_conversations_per_day,
             };
             *stats.write().unwrap() = Some(new_stats);
         }
