@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use error::JellyError;
 use log::debug;
 use reqwest::Url;
@@ -101,6 +102,18 @@ pub struct Conversation {
     pub id: String,
     pub status: ConversationStatus,
     pub labels: Vec<ConversationLabel>,
+    pub messages_count: u32,
+    pub comments_count: u32,
+    pub attachments_count: u32,
+    pub snoozed_until: Option<DateTime<Utc>>,
+    pub url: Url,
+    pub markdown_url: Url,
+    pub messages_url: Url,
+    pub comments_url: Url,
+    pub draft_reply_url: Url,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub last_message_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
