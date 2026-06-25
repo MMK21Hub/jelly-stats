@@ -126,7 +126,7 @@ impl JellyClient {
         let http = HttpClient::builder().default_headers(headers).build()?;
 
         Ok(Self {
-            base_url: base_url.into(),
+            base_url: base_url.into().join("/api/").expect("failed to build URL"),
             http,
         })
     }
@@ -136,7 +136,9 @@ impl JellyClient {
         path: &str,
         query: String,
     ) -> Result<T, JellyError> {
+        let path = path.trim_start_matches("/");
         let url = self.base_url.join(&format!("{}?{}", path, query))?;
+        println!("GET {}", url);
         let response = self.http.get(url.clone()).send()?;
         let status = response.status();
         let result: Result<T, JellyError> = if status.is_success() {
