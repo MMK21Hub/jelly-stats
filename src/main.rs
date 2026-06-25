@@ -5,8 +5,8 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Error, Result};
-use axum::{Router, extract::State, routing::get};
+use anyhow::{Context, Result};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use jelly_stats::jelly::{Conversation, ConversationListOptions, ConversationStatus, JellyClient};
 use log::info;
 use serde::Serialize;
@@ -40,9 +40,19 @@ async fn metrics(State(stats): State<SharedStats>) -> String {
     }
 }
 
-async fn stats_json(State(stats): State<SharedStats>) -> String {
-    let s = stats.read().unwrap().clone();
-    serde_json::to_string(&s).expect("failed to serialise to JSON")
+async fn stats_json(State(stats): State<SharedStats>) -> impl IntoResponse {
+    let stats = stats.read().unwrap();
+
+    match &*stats {
+        Some(stats) => (StatusCode::OK, Json(stats)).into_response(),
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "error": "initial scrape has not completed"
+            })),
+        )
+            .into_response(),
+    }
 }
 
 fn scrape_loop(stats: SharedStats) -> Result<()> {
