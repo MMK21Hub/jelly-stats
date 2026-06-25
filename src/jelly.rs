@@ -1,6 +1,6 @@
 use reqwest::blocking::Client as HttpClient;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub mod error {
     use crate::jelly::JellyAPIError;
@@ -23,7 +23,7 @@ use error::JellyError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-enum JellyAPIError {
+pub(crate) enum JellyAPIError {
     #[error("endpoint not found")]
     EndpointNotFound,
     #[error("invalid API token")]
@@ -45,6 +45,48 @@ impl From<ErrorResponse> for JellyAPIError {
             other => Self::UnknownError(other.to_owned()),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversationStatus {
+    Open,
+    Archived,
+    Snoozed,
+    Spam,
+    Trash,
+}
+
+impl ConversationStatus {
+    pub fn as_api_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Archived => "archived",
+            Self::Snoozed => "snoozed",
+            Self::Spam => "spam",
+            Self::Trash => "trash",
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ConversationListOptions {
+    pub status: Option<ConversationStatus>,
+    pub label_id: Option<String>,
+    pub mailbox_id: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Conversation {
+    pub id: String,
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConversationsPage {
+    pub conversations: Vec<Conversation>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Clone)]
@@ -74,7 +116,15 @@ impl JellyClient {
     }
 
     fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, JellyError> {
-        let url = self.url(path);
+        self.get_with_query(path, &[])
+    }
+
+    fn get_with_query<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<T, JellyError> {
+        let url = self.url_with_query(path, query);
         let response = self.http.get(&url).send()?;
         let result: Result<T, JellyError> = if response.status().is_success() {
             Ok(response.json::<T>()?)
@@ -85,11 +135,78 @@ impl JellyClient {
         result
     }
 
+    pub fn list_conversations(
+        &self,
+        options: &ConversationListOptions,
+    ) -> Result<ConversationsPage, JellyError> {
+        let mut query = Vec::new();
+
+        if let Some(status) = options.status {
+            query.push(("status", status.as_api_str().to_owned()));
+        }
+
+        if let Some(label_id) = options.label_id.as_ref() {
+            query.push(("label_id", label_id.clone()));
+        }
+
+        if let Some(mailbox_id) = options.mailbox_id.as_ref() {
+            query.push(("mailbox_id", mailbox_id.clone()));
+        }
+
+        if let Some(limit) = options.limit {
+            query.push(("limit", limit.to_string()));
+        }
+
+        if let Some(cursor) = options.cursor.as_ref() {
+            query.push(("cursor", cursor.clone()));
+        }
+
+        self.get_with_query("/api/conversations", &query)
+    }
+
+    pub fn count_conversations(
+        &self,
+        options: &ConversationListOptions,
+    ) -> Result<usize, JellyError> {
+        let mut count = 0usize;
+        let mut cursor = options.cursor.clone();
+
+        loop {
+            let page_options = ConversationListOptions {
+                status: options.status,
+                label_id: options.label_id.clone(),
+                mailbox_id: options.mailbox_id.clone(),
+                limit: options.limit,
+                cursor: cursor.clone(),
+            };
+            let page = self.list_conversations(&page_options)?;
+            count += page.conversations.len();
+
+            match page
+                .next_cursor
+                .filter(|next_cursor| !next_cursor.is_empty())
+            {
+                Some(next_cursor) => cursor = Some(next_cursor),
+                None => break,
+            }
+        }
+
+        Ok(count)
+    }
+
     fn url(&self, path: &str) -> String {
         format!(
             "{}/{}",
             self.base_url.trim_end_matches('/'),
             path.trim_start_matches('/')
         )
+    }
+
+    fn url_with_query(&self, path: &str, query: &[(&str, String)]) -> String {
+        let url = self.url(path);
+        match reqwest::Url::parse_with_params(&url, query) {
+            Ok(url) => url.to_string(),
+            Err(_) => url,
+        }
     }
 }
