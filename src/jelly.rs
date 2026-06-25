@@ -1,6 +1,10 @@
+use error::JellyError;
+use reqwest::Url;
 use reqwest::blocking::Client as HttpClient;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use thiserror::Error;
 
 pub mod error {
     use crate::jelly::JellyAPIError;
@@ -18,9 +22,6 @@ pub mod error {
         InvalidHeader,
     }
 }
-
-use error::JellyError;
-use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum JellyAPIError {
@@ -115,7 +116,7 @@ impl JellyClient {
         })
     }
 
-    fn get_with_query<T: serde::de::DeserializeOwned>(
+    fn get_with_query<T: DeserializeOwned>(
         &self,
         path: &str,
         query: &[(&str, String)],
@@ -172,34 +173,28 @@ impl JellyClient {
 
     fn url_with_query(&self, path: &str, query: &[(&str, String)]) -> String {
         let url = self.url(path);
-        reqwest::Url::parse_with_params(&url, query)
+        Url::parse_with_params(&url, query)
             .map(|url| url.to_string())
             .unwrap_or(url)
     }
 }
 
 fn conversation_query_params(options: &ConversationListOptions) -> Vec<(&str, String)> {
-    let mut query = Vec::with_capacity(5);
-
+    let mut query = Vec::new();
     if let Some(status) = options.status {
         query.push(("status", status.as_api_str().to_owned()));
     }
-
     if let Some(label_id) = options.label_id.as_ref() {
         query.push(("label_id", label_id.clone()));
     }
-
     if let Some(mailbox_id) = options.mailbox_id.as_ref() {
         query.push(("mailbox_id", mailbox_id.clone()));
     }
-
     if let Some(limit) = options.limit {
         query.push(("limit", limit.to_string()));
     }
-
     if let Some(cursor) = options.cursor.as_ref() {
         query.push(("cursor", cursor.clone()));
     }
-
     query
 }
