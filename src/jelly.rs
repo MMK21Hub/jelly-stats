@@ -15,8 +15,13 @@ pub mod error {
         #[error("http error: {0}")]
         Http(#[from] reqwest::Error),
 
-        #[error("api error: {0}")]
-        Api(JellyAPIError),
+        #[error("api error ({status}) on {endpoint}: {source}")]
+        Api {
+            status: reqwest::StatusCode,
+            endpoint: String,
+            #[source]
+            source: JellyAPIError,
+        },
 
         #[error("invalid header")]
         InvalidHeader,
@@ -123,11 +128,16 @@ impl JellyClient {
     ) -> Result<T, JellyError> {
         let url = self.url_with_query(path, query);
         let response = self.http.get(&url).send()?;
+        let status = response.status();
         let result: Result<T, JellyError> = if response.status().is_success() {
             Ok(response.json::<T>()?)
         } else {
             let error = response.json::<ErrorResponse>()?;
-            Err(JellyError::Api(error.into()))
+            Err(JellyError::Api {
+                status,
+                endpoint: url,
+                source: error.into(),
+            })
         };
         result
     }
