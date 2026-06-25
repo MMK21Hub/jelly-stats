@@ -146,7 +146,7 @@ impl JellyClient {
         &self,
         options: &ConversationListOptions,
     ) -> Result<ConversationsPage, JellyError> {
-        self.get_with_query("/api/conversations", &conversation_query_params(options))
+        self.get_with_query("/conversations", &conversation_query_params(options))
     }
 
     pub fn count_conversations(
