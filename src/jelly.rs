@@ -58,6 +58,13 @@ impl JellyAPIError {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ConversationLabel {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConversationStatus {
     Open,
@@ -92,6 +99,7 @@ pub struct ConversationListOptions {
 pub struct Conversation {
     pub id: String,
     pub status: String,
+    pub labels: Vec<ConversationLabel>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,6 +185,30 @@ impl JellyClient {
         }
 
         Ok(count)
+    }
+
+    pub fn all_conversations(
+        &self,
+        options: &ConversationListOptions,
+    ) -> Result<Vec<Conversation>, JellyError> {
+        let mut conversations = Vec::new();
+        let mut page_options = options.clone();
+
+        loop {
+            let page = self.list_conversations(&page_options)?;
+            conversations.extend(page.conversations);
+
+            if let Some(next_cursor) = page
+                .next_cursor
+                .filter(|next_cursor| !next_cursor.is_empty())
+            {
+                page_options.cursor = Some(next_cursor);
+            } else {
+                break;
+            }
+        }
+
+        Ok(conversations)
     }
 
     fn url(&self, path: &str) -> String {
