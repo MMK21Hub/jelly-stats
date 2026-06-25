@@ -1,6 +1,5 @@
-mod jelly;
 use anyhow::{Context, Ok, Result};
-use jelly::JellyClient;
+use jelly_stats::jelly::JellyClient;
 
 fn main() -> Result<()> {
     dotenv::dotenv().ok();

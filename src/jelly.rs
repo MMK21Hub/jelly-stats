@@ -23,7 +23,7 @@ use error::JellyError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum JellyAPIError {
+pub enum JellyAPIError {
     #[error("endpoint not found")]
     EndpointNotFound,
     #[error("invalid API token")]
@@ -115,10 +115,6 @@ impl JellyClient {
         })
     }
 
-    fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, JellyError> {
-        self.get_with_query(path, &[])
-    }
-
     fn get_with_query<T: serde::de::DeserializeOwned>(
         &self,
         path: &str,
@@ -139,29 +135,7 @@ impl JellyClient {
         &self,
         options: &ConversationListOptions,
     ) -> Result<ConversationsPage, JellyError> {
-        let mut query = Vec::new();
-
-        if let Some(status) = options.status {
-            query.push(("status", status.as_api_str().to_owned()));
-        }
-
-        if let Some(label_id) = options.label_id.as_ref() {
-            query.push(("label_id", label_id.clone()));
-        }
-
-        if let Some(mailbox_id) = options.mailbox_id.as_ref() {
-            query.push(("mailbox_id", mailbox_id.clone()));
-        }
-
-        if let Some(limit) = options.limit {
-            query.push(("limit", limit.to_string()));
-        }
-
-        if let Some(cursor) = options.cursor.as_ref() {
-            query.push(("cursor", cursor.clone()));
-        }
-
-        self.get_with_query("/api/conversations", &query)
+        self.get_with_query("/api/conversations", &conversation_query_params(options))
     }
 
     pub fn count_conversations(
@@ -169,25 +143,19 @@ impl JellyClient {
         options: &ConversationListOptions,
     ) -> Result<usize, JellyError> {
         let mut count = 0usize;
-        let mut cursor = options.cursor.clone();
+        let mut page_options = options.clone();
 
         loop {
-            let page_options = ConversationListOptions {
-                status: options.status,
-                label_id: options.label_id.clone(),
-                mailbox_id: options.mailbox_id.clone(),
-                limit: options.limit,
-                cursor: cursor.clone(),
-            };
             let page = self.list_conversations(&page_options)?;
             count += page.conversations.len();
 
-            match page
+            if let Some(next_cursor) = page
                 .next_cursor
                 .filter(|next_cursor| !next_cursor.is_empty())
             {
-                Some(next_cursor) => cursor = Some(next_cursor),
-                None => break,
+                page_options.cursor = Some(next_cursor);
+            } else {
+                break;
             }
         }
 
@@ -204,9 +172,34 @@ impl JellyClient {
 
     fn url_with_query(&self, path: &str, query: &[(&str, String)]) -> String {
         let url = self.url(path);
-        match reqwest::Url::parse_with_params(&url, query) {
-            Ok(url) => url.to_string(),
-            Err(_) => url,
-        }
+        reqwest::Url::parse_with_params(&url, query)
+            .map(|url| url.to_string())
+            .unwrap_or(url)
     }
+}
+
+fn conversation_query_params(options: &ConversationListOptions) -> Vec<(&str, String)> {
+    let mut query = Vec::with_capacity(5);
+
+    if let Some(status) = options.status {
+        query.push(("status", status.as_api_str().to_owned()));
+    }
+
+    if let Some(label_id) = options.label_id.as_ref() {
+        query.push(("label_id", label_id.clone()));
+    }
+
+    if let Some(mailbox_id) = options.mailbox_id.as_ref() {
+        query.push(("mailbox_id", mailbox_id.clone()));
+    }
+
+    if let Some(limit) = options.limit {
+        query.push(("limit", limit.to_string()));
+    }
+
+    if let Some(cursor) = options.cursor.as_ref() {
+        query.push(("cursor", cursor.clone()));
+    }
+
+    query
 }
