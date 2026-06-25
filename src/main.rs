@@ -1,5 +1,5 @@
 use anyhow::{Context, Ok, Result};
-use jelly_stats::jelly::{ConversationListOptions, JellyClient};
+use jelly_stats::jelly::{Conversation, ConversationListOptions, JellyClient};
 
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
@@ -9,13 +9,18 @@ fn main() -> Result<()> {
         std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
     )?;
 
-    let convos = client.count_conversations(&ConversationListOptions {
-        // label_id: Some("".to_string()),
-        mailbox_id: Some("stardance".to_string()),
-        ..Default::default()
-    });
+    let convos: Vec<Conversation> = client
+        .all_conversations(&ConversationListOptions {
+            // label_id: Some("".to_string()),
+            mailbox_id: Some("stardance".to_string()),
+            ..Default::default()
+        })?
+        .into_iter()
+        .filter(|c| c.labels.len() == 0)
+        .collect();
 
     println!("Conversations: {:#?}", convos);
+    println!("Conversations: {:#?}", convos.len());
 
     Ok(())
 }
