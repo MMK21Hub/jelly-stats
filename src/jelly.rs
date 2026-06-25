@@ -19,6 +19,7 @@ pub mod error {
         Api {
             status: reqwest::StatusCode,
             endpoint: String,
+            body: String,
             #[source]
             source: JellyAPIError,
         },
@@ -43,12 +44,16 @@ struct ErrorResponse {
     error: String,
 }
 
-impl From<ErrorResponse> for JellyAPIError {
-    fn from(value: ErrorResponse) -> Self {
-        match value.error.as_str() {
-            "Endpoint not found" => Self::EndpointNotFound,
-            "Invalid API token" => Self::InvalidAPIToken,
-            other => Self::UnknownError(other.to_owned()),
+impl JellyAPIError {
+    fn from_raw_body(body: &str) -> Self {
+        if let Ok(error) = serde_json::from_str::<ErrorResponse>(body) {
+            match error.error.as_str() {
+                "Endpoint not found" => Self::EndpointNotFound,
+                "Invalid API token" => Self::InvalidAPIToken,
+                other => Self::UnknownError(other.to_owned()),
+            }
+        } else {
+            Self::UnknownError(body.to_owned())
         }
     }
 }
@@ -129,14 +134,15 @@ impl JellyClient {
         let url = self.url_with_query(path, query);
         let response = self.http.get(&url).send()?;
         let status = response.status();
-        let result: Result<T, JellyError> = if response.status().is_success() {
+        let result: Result<T, JellyError> = if status.is_success() {
             Ok(response.json::<T>()?)
         } else {
-            let error = response.json::<ErrorResponse>()?;
+            let body = response.text()?;
             Err(JellyError::Api {
                 status,
                 endpoint: url,
-                source: error.into(),
+                source: JellyAPIError::from_raw_body(&body),
+                body,
             })
         };
         result
