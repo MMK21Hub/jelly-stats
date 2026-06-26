@@ -34,8 +34,6 @@ async fn metrics(State(stats): State<SharedStats>) -> String {
                 jelly_open_conversations {}\n\
                 # TYPE jelly_total_conversations gauge\n\
                 jelly_total_conversations {}\n\
-                # TYPE up gauge\n\
-                up 1\n\
                 ",
                 s.open_conversations, s.total_conversations
             )
