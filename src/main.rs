@@ -10,11 +10,11 @@ use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use chrono::{NaiveDate, Utc};
 use jelly_stats::jelly::{Conversation, ConversationListOptions, ConversationStatus, JellyClient};
-use log::info;
+use log::{debug, info};
 use serde::Serialize;
 use url::Url;
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, Debug)]
 struct Stats {
     open_conversations: u64,
     total_conversations: u64,
@@ -67,9 +67,17 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
     )?;
     let target_mailbox = std::env::var("JELLY_MAILBOX").ok();
+    if let Some(slug) = &target_mailbox {
+        info!("Using Jelly mailbox: {}", slug);
+    } else {
+        info!("No Jelly mailbox specified, fetching all conversations");
+    }
 
     loop {
-        info!("Extracting jelly statistics");
+        info!(
+            "Fetching jelly statistics at {}",
+            Utc::now().format("%Y-%m-%d %H:%M:%S")
+        );
         let conversations: Vec<Conversation> = client
             .all_conversations(&ConversationListOptions {
                 mailbox_id: target_mailbox.clone(),
@@ -103,8 +111,14 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 new_conversations_last_24h,
                 new_conversations_per_day,
             };
-            *stats.write().unwrap() = Some(new_stats);
+            *stats.write().unwrap() = Some(new_stats.clone());
+            debug!("Latest stats: {:?}", new_stats);
         }
+
+        info!(
+            "Successfully fetched statistics, {} conversations found",
+            conversations.len()
+        );
 
         thread::sleep(Duration::from_secs(5 * 60));
     }
