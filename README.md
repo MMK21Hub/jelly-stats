@@ -17,6 +17,32 @@ The following environment variables are accepted:
 | `JELLY_MAILBOX` (recommended)  | The slug of the mailbox to fetch conversations from (e.g. `stardance`)                      | Empty (Fetch from all mailboxes) |
 | `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api>  |
 
+## Public instance
+
+Jelly stats for the stardance mailbox are available at:
+
+- <https://jelly-stats.slevel.xyz/metrics>
+- <https://jelly-stats.slevel.xyz/stats>
+
+## Self-hosting
+
+You can use Docker! Here's an example Compose file:
+
+```yaml
+services:
+  jelly-stats:
+    image: ghcr.io/mmk21hub/jelly-stats:latest
+    restart: unless-stopped
+    environment:
+      RUST_LOG: info
+      JELLY_API_KEY: abcAAAxyz
+      JELLY_MAILBOX: stardance
+    ports:
+      - "3010:3000"
+```
+
+Adjust to your needs, e.g. by changing the `3010` to your preferred port.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
