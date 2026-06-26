@@ -3,7 +3,7 @@
 [![Docker image CI build status](https://github.com/MMK21Hub/jelly-stats/actions/workflows/build-and-push.yaml/badge.svg)](https://github.com/MMK21Hub/jelly-stats/actions/workflows/build-and-push.yaml)
 
 > basically we use the [Jelly](https://letsjelly.com/) API to fetch all conversations, and generate some stats based on the data we see.
-
+>
 > stats are exposed via Prometheus-compatible metrics (`/metrics`), and a JSON endpoint (`/stats`).
 
 ## Configuration
