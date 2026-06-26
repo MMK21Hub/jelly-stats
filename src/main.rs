@@ -66,13 +66,13 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         )?,
         std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
     )?;
+    let target_mailbox = std::env::var("JELLY_MAILBOX").ok();
 
     loop {
         info!("Extracting jelly statistics");
         let conversations: Vec<Conversation> = client
             .all_conversations(&ConversationListOptions {
-                // label_id: Some("".to_string()),
-                mailbox_id: Some("stardance".to_string()),
+                mailbox_id: target_mailbox.clone(),
                 limit: Some(100),
                 ..Default::default()
             })?

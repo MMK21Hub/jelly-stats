@@ -10,10 +10,11 @@
 
 The following environment variables are accepted:
 
-| Variable                       | Description                                                                                 | Default                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------- |
-| `JELLY_API_KEY` **(required)** | A valid Jelly API token for your Jelly workspace. (Note that only admins can use API keys.) | _None_                          |
-| `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api> |
+| Variable                       | Description                                                                                 | Default                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------- |
+| `JELLY_API_KEY` **(required)** | A valid Jelly API token for your Jelly workspace. (Note that only admins can use API keys.) | _None_                           |
+| `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api>  |
+| `JELLY_MAILBOX`                | The slug of the mailbox to fetch conversations from (e.g. `stardance`)                      | Empty (Fetch from all mailboxes) |
 
 ## Contributing
 
