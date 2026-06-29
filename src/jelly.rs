@@ -18,6 +18,14 @@ pub mod error {
         #[error("http error: {0}")]
         Http(#[from] reqwest::Error),
 
+        #[error("error decoding response from url ({endpoint}): {source}")]
+        Decode {
+            endpoint: Url,
+            body: String,
+            #[source]
+            source: serde_json::Error,
+        },
+
         #[error("api error ({status}) on {endpoint}: {source}")]
         Api {
             status: reqwest::StatusCode,
@@ -108,7 +116,7 @@ pub struct Message {
     pub url: Url,
     pub from: Vec<String>,
     pub to: Vec<String>,
-    pub cc: Vec<String>,
+    pub cc: Option<Vec<String>>,
     pub html_body: String,
     pub text_body: String,
     pub attachments_count: u64,
@@ -205,10 +213,14 @@ impl JellyClient {
         debug!("GET {}", url);
         let response = self.http.get(url.clone()).query(query).send()?;
         let status = response.status();
+        let body = response.text()?;
         let result: Result<T, JellyError> = if status.is_success() {
-            Ok(response.json::<T>()?)
+            serde_json::from_str(&body).map_err(|source| JellyError::Decode {
+                endpoint: url.clone(),
+                body: body.clone(),
+                source,
+            })
         } else {
-            let body = response.text()?;
             Err(JellyError::Api {
                 status,
                 endpoint: url,
