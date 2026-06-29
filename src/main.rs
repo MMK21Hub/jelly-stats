@@ -9,33 +9,101 @@ use std::{
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use chrono::{NaiveDate, Utc};
-use jelly_stats::jelly::{Conversation, ConversationListOptions, ConversationStatus, JellyClient};
+use jelly_stats::jelly::{
+    Conversation, ConversationDetail, ConversationListOptions, ConversationStatus, JellyClient,
+    Sender,
+};
 use log::{debug, info};
 use serde::Serialize;
 use url::Url;
 
-#[derive(Clone, Default, Serialize, Debug)]
+#[derive(Clone, Serialize, Debug)]
 struct Stats {
     open_conversations: u64,
     total_conversations: u64,
     new_conversations_last_24h: u64,
     new_conversations_per_day: BTreeMap<NaiveDate, u64>,
+    hang_time: Option<HangTimeStats>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct HangTimeStats {
+    mean_seconds: f64,
+    median_seconds: f64,
 }
 
 type SharedStats = Arc<RwLock<Option<Stats>>>;
+
+fn hang_time_seconds(detail: &ConversationDetail) -> Option<i64> {
+    let first_message = detail
+        .messages
+        .iter()
+        .min_by(|left, right| left.sent_at.cmp(&right.sent_at))?;
+    let first_response = detail
+        .messages
+        .iter()
+        .filter(|message| message.sent_at > first_message.sent_at)
+        .find(|message| matches!(message.sender, Some(Sender::Member { .. })))?;
+
+    Some(
+        first_response
+            .sent_at
+            .signed_duration_since(first_message.sent_at)
+            .num_seconds(),
+    )
+}
+
+fn calculate_hang_times(values: &[i64]) -> Option<HangTimeStats> {
+    if values.is_empty() {
+        return None;
+    }
+
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let mean_seconds = sorted.iter().sum::<i64>() as f64 / sorted.len() as f64;
+    let median_seconds = if sorted.len() % 2 == 0 {
+        let middle = sorted.len() / 2;
+        (sorted[middle - 1] as f64 + sorted[middle] as f64) / 2.0
+    } else {
+        sorted[sorted.len() / 2] as f64
+    };
+
+    Some(HangTimeStats {
+        mean_seconds,
+        median_seconds,
+    })
+}
 
 async fn metrics(State(stats): State<SharedStats>) -> String {
     let s = stats.read().unwrap();
     match s.as_ref() {
         Some(s) => {
+            let hang_times = match &s.hang_time {
+                Some(hang_time) => format!(
+                    "\
+                    # HELP jelly_hang_time_seconds_mean Mean hang time between the first email and the first staff reply\n\
+                    # TYPE jelly_hang_time_seconds_mean gauge\n\
+                    jelly_hang_time_seconds_mean {}\n\
+                    # HELP jelly_hang_time_seconds_median Median hang time between the first email and the first staff reply\n\
+                    # TYPE jelly_hang_time_seconds_median gauge\n\
+                    jelly_hang_time_seconds_median {}\n\
+                    ",
+                    hang_time.mean_seconds, hang_time.median_seconds
+                ),
+                None => format!(""),
+            };
+
             format!(
                 "\
+                # HELP jelly_open_conversations Current number of open conversations\n\
                 # TYPE jelly_open_conversations gauge\n\
                 jelly_open_conversations {}\n\
+                # HELP jelly_total_conversations Current number of conversations\n\
                 # TYPE jelly_total_conversations gauge\n\
                 jelly_total_conversations {}\n\
+                {}\n\
                 ",
-                s.open_conversations, s.total_conversations
+                s.open_conversations, s.total_conversations, hang_times
             )
         }
         None => format!(""),
@@ -89,6 +157,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         let now = Utc::now();
         let mut new_conversations_per_day = BTreeMap::new();
         let mut new_conversations_last_24h = 0;
+        let mut hang_times = Vec::new();
         for convo in conversations.iter() {
             // Bucket conversations into the date they were created
             let day = convo.created_at.date_naive();
@@ -97,7 +166,14 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             if now - convo.created_at < chrono::Duration::hours(24) {
                 new_conversations_last_24h += 1;
             }
+
+            let detail = client.get_conversation(&convo.id)?;
+            if let Some(hang_time) = hang_time_seconds(&detail) {
+                hang_times.push(hang_time);
+            }
         }
+
+        let hang_time = calculate_hang_times(&hang_times);
 
         {
             let new_stats = Stats {
@@ -108,6 +184,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 total_conversations: conversations.len() as u64,
                 new_conversations_last_24h,
                 new_conversations_per_day,
+                hang_time,
             };
             *stats.write().unwrap() = Some(new_stats.clone());
             debug!("Latest stats: {:?}", new_stats);
