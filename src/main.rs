@@ -3,7 +3,6 @@ use std::{
     net::SocketAddr,
     sync::{Arc, RwLock},
     thread,
-    time::Duration,
 };
 
 use anyhow::{Context, Result};

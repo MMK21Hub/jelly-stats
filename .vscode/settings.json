@@ -1,0 +1,6 @@
+{
+  "cSpell.words": ["convos", "humantime"],
+  "markdownlint.config": {
+    "table-column-style": false
+  }
+}
