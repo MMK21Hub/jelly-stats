@@ -98,6 +98,49 @@ pub struct ConversationListOptions {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Message {
+    pub id: String,
+    pub conversation_id: String,
+    pub subject: String,
+    pub inbound: bool,
+    pub sent_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub url: Url,
+    pub from: Vec<String>,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub html_body: String,
+    pub text_body: String,
+    pub attachments_count: u64,
+    pub attachments: Vec<Attachment>,
+    pub sender: Option<Sender>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum Sender {
+    Member {
+        id: u64,
+        name: String,
+        email: String,
+    },
+    Contact {
+        email: String,
+    },
+    System,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Attachment {
+    pub id: String,
+    pub filename: String,
+    pub content_type: String,
+    pub byte_size: u64,
+    pub inline: bool,
+    pub url: Url,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Conversation {
     pub id: String,
     pub status: ConversationStatus,
@@ -114,6 +157,13 @@ pub struct Conversation {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_message_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct ConversationDetail {
+    #[serde(flatten)]
+    pub conversation: Conversation,
+    pub messages: Vec<Message>,
 }
 
 #[derive(Debug, Deserialize)]
