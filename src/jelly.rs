@@ -109,7 +109,7 @@ pub struct ConversationListOptions {
 pub struct Message {
     pub id: String,
     pub conversation_id: String,
-    pub subject: String,
+    pub subject: Option<String>,
     pub inbound: bool,
     pub sent_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -118,7 +118,7 @@ pub struct Message {
     pub to: Vec<String>,
     pub cc: Option<Vec<String>>,
     pub html_body: String,
-    pub text_body: String,
+    pub text_body: Option<String>,
     pub attachments_count: u64,
     pub attachments: Vec<Attachment>,
     pub sender: Option<Sender>,
@@ -128,7 +128,7 @@ pub struct Message {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Sender {
     Member {
-        id: u64,
+        id: String,
         name: String,
         email: String,
     },
