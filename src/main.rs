@@ -133,6 +133,12 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
     )?;
     let target_mailbox = std::env::var("JELLY_MAILBOX").ok();
+    let scrape_interval = std::env::var("SCRAPE_INTERVAL")
+        .ok()
+        .map(|s| humantime::parse_duration(&s))
+        .transpose()
+        .context("SCRAPE_INTERVAL must be a valid duration (e.g. 10m, 60s)")?
+        .unwrap_or(std::time::Duration::from_mins(10));
     if let Some(slug) = &target_mailbox {
         info!("Using Jelly mailbox: {}", slug);
     } else {
@@ -195,7 +201,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             conversations.len()
         );
 
-        thread::sleep(Duration::from_secs(5 * 60));
+        thread::sleep(scrape_interval);
     }
 }
 
