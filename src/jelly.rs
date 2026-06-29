@@ -11,6 +11,7 @@ use thiserror::Error;
 pub mod error {
     use crate::jelly::JellyAPIError;
     use reqwest::Url;
+    use reqwest::header::HeaderMap;
     use thiserror::Error;
 
     #[derive(Debug, Error)]
@@ -31,6 +32,7 @@ pub mod error {
             status: reqwest::StatusCode,
             endpoint: Url,
             body: String,
+            headers: HeaderMap,
             #[source]
             source: JellyAPIError,
         },
@@ -213,6 +215,7 @@ impl JellyClient {
         debug!("GET {}", url);
         let response = self.http.get(url.clone()).query(query).send()?;
         let status = response.status();
+        let headers = response.headers().clone();
         let body = response.text()?;
         let result: Result<T, JellyError> = if status.is_success() {
             serde_json::from_str(&body).map_err(|source| JellyError::Decode {
@@ -226,6 +229,7 @@ impl JellyClient {
                 endpoint: url,
                 source: JellyAPIError::from_raw_body(&body),
                 body,
+                headers,
             })
         };
         result
