@@ -195,15 +195,15 @@ impl JellyClient {
         })
     }
 
-    fn get_with_query<T: DeserializeOwned>(
-        &self,
-        path: &str,
-        query: String,
-    ) -> Result<T, JellyError> {
+    fn get<T, Q>(&self, path: &str, query: &Q) -> Result<T, JellyError>
+    where
+        T: DeserializeOwned,
+        Q: Serialize,
+    {
         let path = path.trim_start_matches("/");
-        let url = self.base_url.join(&format!("{}?{}", path, query))?;
+        let url = self.base_url.join(path)?;
         debug!("GET {}", url);
-        let response = self.http.get(url.clone()).send()?;
+        let response = self.http.get(url.clone()).query(query).send()?;
         let status = response.status();
         let result: Result<T, JellyError> = if status.is_success() {
             Ok(response.json::<T>()?)
@@ -223,7 +223,34 @@ impl JellyClient {
         &self,
         options: &ConversationListOptions,
     ) -> Result<ConversationsPage, JellyError> {
-        self.get_with_query("/conversations", serde_urlencoded::to_string(options)?)
+        self.get("/conversations", options)
+    }
+
+    pub fn get_conversation(&self, id: &str) -> Result<ConversationDetail, JellyError> {
+        self.get(&format!("/conversations/{}", id), &())
+    }
+
+    fn for_each_conversation_page<F>(
+        &self,
+        options: &ConversationListOptions,
+        mut callback: F,
+    ) -> Result<(), JellyError>
+    where
+        F: FnMut(ConversationsPage),
+    {
+        let mut page_options = options.clone();
+        loop {
+            let page = self.list_conversations(&page_options)?;
+            let next_cursor = page.next_cursor.clone();
+            callback(page);
+
+            if let Some(next_cursor) = next_cursor.filter(|next_cursor| !next_cursor.is_empty()) {
+                page_options.cursor = Some(next_cursor);
+            } else {
+                break;
+            }
+        }
+        Ok(())
     }
 
     pub fn count_conversations(
@@ -231,22 +258,9 @@ impl JellyClient {
         options: &ConversationListOptions,
     ) -> Result<usize, JellyError> {
         let mut count = 0usize;
-        let mut page_options = options.clone();
-
-        loop {
-            let page = self.list_conversations(&page_options)?;
+        self.for_each_conversation_page(options, |page| {
             count += page.conversations.len();
-
-            if let Some(next_cursor) = page
-                .next_cursor
-                .filter(|next_cursor| !next_cursor.is_empty())
-            {
-                page_options.cursor = Some(next_cursor);
-            } else {
-                break;
-            }
-        }
-
+        })?;
         Ok(count)
     }
 
@@ -255,25 +269,14 @@ impl JellyClient {
         options: &ConversationListOptions,
     ) -> Result<Vec<Conversation>, JellyError> {
         let mut conversations = Vec::new();
-        let mut page_options = options.clone();
 
-        loop {
-            let page = self.list_conversations(&page_options)?;
+        self.for_each_conversation_page(options, |page| {
             debug!(
                 "Discovered {} conversations on page",
                 page.conversations.len()
             );
             conversations.extend(page.conversations);
-
-            if let Some(next_cursor) = page
-                .next_cursor
-                .filter(|next_cursor| !next_cursor.is_empty())
-            {
-                page_options.cursor = Some(next_cursor);
-            } else {
-                break;
-            }
-        }
+        })?;
 
         Ok(conversations)
     }
