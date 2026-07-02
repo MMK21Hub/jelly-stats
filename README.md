@@ -19,10 +19,6 @@ The following environment variables are accepted:
 | `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `10m` (10 minutes) |
 | `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api>  |
 
-## Limitations
-
-Currently, stats will only be calculated on untagged conversations.
-
 ## Public instance
 
 Jelly stats for the stardance mailbox are available at:

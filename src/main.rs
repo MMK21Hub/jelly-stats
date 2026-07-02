@@ -156,7 +156,6 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 ..Default::default()
             })?
             .into_iter()
-            .filter(|c| c.labels.len() == 0)
             .collect();
 
         let now = Utc::now();
