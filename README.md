@@ -15,9 +15,11 @@ The following environment variables are accepted:
 | ------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------- |
 | `JELLY_API_KEY` **(required)** | A valid Jelly API token for your Jelly workspace. (Note that only admins can use API keys.) | N/A                              |
 | `RUST_LOG` (recommended)       | Set the log level. Recommend setting to `info`.                                             | Empty (no logs)                  |
-| `JELLY_MAILBOX` (recommended)  | The slug of the mailbox to fetch conversations from (e.g. `stardance`)                      | Empty (Fetch from all mailboxes) |
+| `JELLY_MAILBOX` | The slug of the mailbox to fetch conversations from (e.g. `stardance`)                      | Empty (Fetch from all mailboxes) |
 | `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `10m` (10 minutes) |
 | `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api>  |
+
+On startup, environment variables are automatically loaded from a `.env` file in the working directory, but if your deployment platform (e.g. Coolify, Docker Compose) has a way to set environment variables you probably want to use that.
 
 ## Public instance
 
