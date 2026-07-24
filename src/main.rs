@@ -1,9 +1,15 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     net::SocketAddr,
     sync::{Arc, RwLock},
     thread,
 };
+
+#[cfg(feature = "slack")]
+mod slack;
+
+#[cfg(feature = "slack")]
+use slack::SlackConfig;
 
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
@@ -23,12 +29,19 @@ struct Stats {
     new_conversations_last_24h: u64,
     new_conversations_per_day: BTreeMap<NaiveDate, u64>,
     hang_time: Option<HangTimeStats>,
+    leaderboard: Vec<LeaderboardEntry>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 struct HangTimeStats {
     mean_seconds: f64,
     median_seconds: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LeaderboardEntry {
+    pub name: String,
+    pub count: u64,
 }
 
 type SharedStats = Arc<RwLock<Option<Stats>>>;
@@ -162,6 +175,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         let mut new_conversations_per_day = BTreeMap::new();
         let mut new_conversations_last_24h = 0;
         let mut hang_times = Vec::new();
+        let mut member_message_counts: HashMap<String, (String, u64)> = HashMap::new();
         for convo in conversations.iter() {
             // Bucket conversations into the date they were created
             let day = convo.created_at.date_naive();
@@ -175,9 +189,29 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             if let Some(hang_time) = hang_time_seconds(&detail) {
                 hang_times.push(hang_time);
             }
+            for msg in &detail.messages {
+                if let Some(Sender::Member { ref id, ref name, .. }) = msg.sender
+                    && now - msg.sent_at < chrono::Duration::hours(24)
+                {
+                    let entry = member_message_counts
+                        .entry(id.clone())
+                        .or_insert((name.clone(), 0));
+                    entry.1 += 1;
+                }
+            }
         }
 
         let hang_time = calculate_hang_times(&hang_times);
+
+        let leaderboard = {
+            let mut entries: Vec<LeaderboardEntry> = member_message_counts
+                .into_values()
+                .map(|(name, count)| LeaderboardEntry { name, count })
+                .collect();
+            entries.sort_by(|a, b| b.count.cmp(&a.count));
+            entries.truncate(10);
+            entries
+        };
 
         {
             let new_stats = Stats {
@@ -189,6 +223,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 new_conversations_last_24h,
                 new_conversations_per_day,
                 hang_time,
+                leaderboard,
             };
             *stats.write().unwrap() = Some(new_stats.clone());
             debug!("Latest stats: {:?}", new_stats);
@@ -221,6 +256,43 @@ async fn main() -> Result<()> {
             }
         }
     });
+
+    #[cfg(feature = "slack")]
+    {
+        let stats_for_slack = stats.clone();
+        tokio::spawn(async move {
+            use clokwerk::{AsyncScheduler, Job};
+            use std::time::Duration;
+
+            let slack_config = SlackConfig::from_env()
+                .expect("Failed to load Slack config");
+
+            let mut scheduler = AsyncScheduler::with_tz(chrono::Utc);
+            scheduler
+                .every(clokwerk::Interval::Days(1))
+                .at(&slack_config.post_time)
+                .run(move || {
+                    let config = slack_config.clone();
+                    let stats = stats_for_slack.clone();
+                    async move {
+                        let leaderboard = stats
+                            .read()
+                            .unwrap()
+                            .as_ref()
+                            .map(|s| s.leaderboard.clone())
+                            .unwrap_or_default();
+                        if let Err(e) = slack::post_leaderboard(&config, &leaderboard).await {
+                            log::error!("Failed to post leaderboard to Slack: {}", e);
+                        }
+                    }
+                });
+
+            loop {
+                scheduler.run_pending().await;
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            }
+        });
+    }
 
     let app = Router::new()
         .route("/metrics", get(metrics))

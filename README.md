@@ -18,6 +18,9 @@ The following environment variables are accepted:
 | `JELLY_MAILBOX` | The slug of the mailbox to fetch conversations from (e.g. `stardance`)                      | Empty (Fetch from all mailboxes) |
 | `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `10m` (10 minutes) |
 | `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api>  |
+| `SLACK_BOT_TOKEN`               | Slack bot token (starts with `xoxb-...`). Only used when built with the `slack` feature.    | N/A                              |
+| `SLACK_CHANNEL_ID`              | Slack channel ID to post the daily leaderboard to (e.g. `C0123456789`). Only used when built with the `slack` feature. | N/A |
+| `SLACK_POST_TIME`               | UTC time to post the daily leaderboard. Only used when built with the `slack` feature.      | `14:00`                          |
 
 On startup, environment variables are automatically loaded from a `.env` file in the working directory, but if your deployment platform (e.g. Coolify, Docker Compose) has a way to set environment variables you probably want to use that.
 
