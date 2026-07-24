@@ -272,34 +272,36 @@ async fn main() -> Result<()> {
     {
         let stats_for_slack = stats.clone();
         tokio::spawn(async move {
-            use clokwerk::{AsyncScheduler, Job};
             use std::time::Duration;
+            use chrono::Utc;
 
             let slack_config = SlackConfig::from_env()
                 .expect("Failed to load Slack config");
-
-            let mut scheduler = AsyncScheduler::with_tz(chrono::Utc);
-            scheduler
-                .every(clokwerk::Interval::Days(1))
-                .at(&slack_config.post_time)
-                .run(move || {
-                    let config = slack_config.clone();
-                    let stats = stats_for_slack.clone();
-                    async move {
-                        let leaderboard = stats
-                            .read()
-                            .unwrap()
-                            .as_ref()
-                            .map(|s| s.leaderboard.clone())
-                            .unwrap_or_default();
-                        if let Err(e) = slack::post_leaderboard(&config, &leaderboard).await {
-                            log::error!("Failed to post leaderboard to Slack: {}", e);
-                        }
-                    }
-                });
+            let mut last_posted_date: Option<chrono::NaiveDate> = None;
 
             loop {
-                scheduler.run_pending().await;
+                let now = Utc::now();
+                let today = now.date_naive();
+                let current_time = now.format("%H:%M").to_string();
+
+                if current_time >= slack_config.post_time
+                    && last_posted_date != Some(today)
+                {
+                    let leaderboard = stats_for_slack
+                        .read()
+                        .unwrap()
+                        .as_ref()
+                        .map(|s| s.leaderboard.clone())
+                        .unwrap_or_default();
+
+                    if !leaderboard.is_empty() {
+                        if let Err(e) = slack::post_leaderboard(&slack_config, &leaderboard).await {
+                            log::error!("Failed to post leaderboard to Slack: {}", e);
+                        }
+                        last_posted_date = Some(today);
+                    }
+                }
+
                 tokio::time::sleep(Duration::from_secs(60)).await;
             }
         });
