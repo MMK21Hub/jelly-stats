@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use slack_api::chat::{self, PostMessageRequest};
+use slacko::{AuthConfig, SlackClient};
 
 use crate::LeaderboardEntry;
 
@@ -43,16 +43,11 @@ pub async fn post_leaderboard(
     let text = format_leaderboard(leaderboard);
 
     let client =
-        slack_api::requests::default_client().context("Failed to create Slack HTTP client")?;
+        SlackClient::new(AuthConfig::bot(&config.token)).context("Failed to create Slack client")?;
 
-    let request = PostMessageRequest {
-        channel: &config.channel,
-        text: &text,
-        link_names: Some(true),
-        ..Default::default()
-    };
-
-    chat::post_message(&client, &config.token, &request)
+    client
+        .chat()
+        .post_message(&config.channel, &text)
         .await
         .context("Failed to post message to Slack")?;
 
