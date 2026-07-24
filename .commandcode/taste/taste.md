@@ -1,0 +1,3 @@
+- Prefers env-var-based configuration over CLI flags or config files. All configurable parameters (API URL, mailbox slug, scrape interval, Slack tokens, max conversations) are expected as environment variables. Confidence: 0.9
+- Prefers opt-in env vars for test/dev shortcuts that skip expensive operations (e.g., `MAX_CONVERSATIONS` to bail out of pagination early) over mocking or test fixtures. Wants fast iteration cycles when testing. Confidence: 0.8
+- Accepts conditional compilation (`#[cfg(feature = "...")]`) as the mechanism for gating optional features like Slack integration, keeping the default build lean. Confidence: 0.7
