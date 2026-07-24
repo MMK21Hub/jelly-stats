@@ -2,3 +2,4 @@
 - Prefers opt-in env vars for test/dev shortcuts that skip expensive operations (e.g., `MAX_CONVERSATIONS` to bail out of pagination early) over mocking or test fixtures. Wants fast iteration cycles when testing. Confidence: 0.8
 - Accepts conditional compilation (`#[cfg(feature = "...")]`) as the mechanism for gating optional features like Slack integration, keeping the default build lean. Confidence: 0.7
 - Prefers the `slacko` crate for Slack API integration over raw HTTP calls or older Slack SDK crates (like `slack_api`). Reasoning: slacko is modern, uses tokio 1.x, and has a clean client API. Confidence: 0.9
+- Prefers strong, domain-appropriate Rust types for configuration fields (e.g., `chrono::NaiveTime` instead of `String` for time values) rather than stringly-typed configs that defer parsing. Confidence: 0.9

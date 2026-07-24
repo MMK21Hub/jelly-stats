@@ -4,7 +4,7 @@
 //! Posts a daily leaderboard of who sent the most emails in the past 24h.
 
 use anyhow::{Context, Result};
-use chrono::Utc;
+use chrono::{NaiveTime, Utc};
 use slacko::{AuthConfig, SlackClient};
 
 use crate::LeaderboardEntry;
@@ -14,19 +14,23 @@ use crate::LeaderboardEntry;
 pub struct SlackConfig {
     pub token: String,
     pub channel: String,
-    pub post_time: String,
+    pub post_time: NaiveTime,
 }
 
 impl SlackConfig {
     pub fn from_env() -> Result<Self> {
-        Ok(Self {
-            token: std::env::var("SLACK_BOT_TOKEN")
-                .context("SLACK_BOT_TOKEN must be set when using the slack feature")?,
-            channel: std::env::var("SLACK_CHANNEL_ID")
-                .context("SLACK_CHANNEL_ID must be set when using the slack feature")?,
-            post_time: std::env::var("SLACK_POST_TIME")
-                .unwrap_or_else(|_| "14:00".to_string()),
-        })
+        let token = std::env::var("SLACK_BOT_TOKEN")
+            .context("SLACK_BOT_TOKEN must be set when using the slack feature")?;
+        let channel = std::env::var("SLACK_CHANNEL_ID")
+            .context("SLACK_CHANNEL_ID must be set when using the slack feature")?;
+        let post_time = std::env::var("SLACK_POST_TIME")
+            .ok()
+            .map(|s| NaiveTime::parse_from_str(&s, "%H:%M")
+                .context("SLACK_POST_TIME must be in HH:MM format"))
+            .transpose()?
+            .unwrap_or_else(|| Utc::now().time());
+
+        Ok(Self { token, channel, post_time })
     }
 }
 

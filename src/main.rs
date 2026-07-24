@@ -282,7 +282,7 @@ async fn main() -> Result<()> {
             loop {
                 let now = Utc::now();
                 let today = now.date_naive();
-                let current_time = now.format("%H:%M").to_string();
+                let current_time = now.time();
 
                 if current_time >= slack_config.post_time
                     && last_posted_date != Some(today)
