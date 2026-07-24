@@ -151,10 +151,18 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         .transpose()
         .context("SCRAPE_INTERVAL must be a valid duration (e.g. 10m, 60s)")?
         .unwrap_or(std::time::Duration::from_mins(10));
+    let max_conversations = std::env::var("MAX_CONVERSATIONS")
+        .ok()
+        .map(|s| s.parse::<u32>())
+        .transpose()
+        .context("MAX_CONVERSATIONS must be a valid positive integer")?;
     if let Some(slug) = &target_mailbox {
         info!("Using Jelly mailbox: {}", slug);
     } else {
         info!("No Jelly mailbox specified, fetching all conversations");
+    }
+    if let Some(max) = max_conversations {
+        info!("Max conversations limit set to {}", max);
     }
 
     loop {
@@ -163,11 +171,14 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             Utc::now().format("%Y-%m-%d %H:%M:%S")
         );
         let conversations: Vec<Conversation> = client
-            .all_conversations(&ConversationListOptions {
-                mailbox_id: target_mailbox.clone(),
-                limit: Some(100),
-                ..Default::default()
-            })?
+            .all_conversations(
+                &ConversationListOptions {
+                    mailbox_id: target_mailbox.clone(),
+                    limit: Some(100),
+                    ..Default::default()
+                },
+                max_conversations,
+            )?
             .into_iter()
             .collect();
 

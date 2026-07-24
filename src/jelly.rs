@@ -249,16 +249,25 @@ impl JellyClient {
     fn for_each_conversation_page<F>(
         &self,
         options: &ConversationListOptions,
+        max_conversations: Option<u32>,
         mut callback: F,
     ) -> Result<(), JellyError>
     where
         F: FnMut(ConversationsPage),
     {
+        let mut accumulated: u32 = 0;
         let mut page_options = options.clone();
         loop {
             let page = self.list_conversations(&page_options)?;
             let next_cursor = page.next_cursor.clone();
+            accumulated += page.conversations.len() as u32;
             callback(page);
+
+            if let Some(max) = max_conversations {
+                if accumulated >= max {
+                    break;
+                }
+            }
 
             if let Some(next_cursor) = next_cursor.filter(|next_cursor| !next_cursor.is_empty()) {
                 page_options.cursor = Some(next_cursor);
@@ -274,7 +283,7 @@ impl JellyClient {
         options: &ConversationListOptions,
     ) -> Result<usize, JellyError> {
         let mut count = 0usize;
-        self.for_each_conversation_page(options, |page| {
+        self.for_each_conversation_page(options, None, |page| {
             count += page.conversations.len();
         })?;
         Ok(count)
@@ -283,10 +292,11 @@ impl JellyClient {
     pub fn all_conversations(
         &self,
         options: &ConversationListOptions,
+        max_conversations: Option<u32>,
     ) -> Result<Vec<Conversation>, JellyError> {
         let mut conversations = Vec::new();
 
-        self.for_each_conversation_page(options, |page| {
+        self.for_each_conversation_page(options, max_conversations, |page| {
             debug!(
                 "Discovered {} conversations on page",
                 page.conversations.len()
