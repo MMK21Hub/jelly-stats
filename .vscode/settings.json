@@ -1,5 +1,14 @@
 {
-  "cSpell.words": ["convos", "humantime"],
+  "cSpell.words": [
+    "convo",
+    "convos",
+    "Coolify",
+    "humantime",
+    "Mish",
+    "slacko",
+    "stardance",
+    "xoxb"
+  ],
   "markdownlint.config": {
     "table-column-style": false
   }
