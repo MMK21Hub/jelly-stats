@@ -19,6 +19,8 @@ use jelly_stats::jelly::{
     Sender,
 };
 use log::{debug, info};
+use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, COOKIE, HeaderMap, HeaderValue, USER_AGENT};
+use reqwest::{blocking::Client, cookie::Jar};
 use serde::Serialize;
 use url::Url;
 
@@ -138,12 +140,21 @@ async fn stats_json(State(stats): State<SharedStats>) -> impl IntoResponse {
 }
 
 fn scrape_loop(stats: SharedStats) -> Result<()> {
-    let client = JellyClient::new(
-        Url::parse(
-            &std::env::var("JELLY_API_URL").unwrap_or("https://app.letsjelly.com/api".into()),
-        )?,
-        std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
+    // let client = JellyClient::new(
+    //     Url::parse(
+    //         &std::env::var("JELLY_API_URL").unwrap_or("https://app.letsjelly.com/api".into()),
+    //     )?,
+    //     std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
+    // )?;
+    let jelly_team_url = Url::parse(
+        format!(
+            "https://app.letsjelly.com/{}",
+            std::env::var("JELLY_TEAM").context("JELLY_TEAM must be set")?
+        )
+        .as_str(),
     )?;
+    let session_token =
+        std::env::var("JELLY_SESSION_TOKEN").context("JELLY_SESSION_TOKEN must be set")?;
     let target_mailbox = std::env::var("JELLY_MAILBOX").ok();
     let scrape_interval = std::env::var("SCRAPE_INTERVAL")
         .ok()
@@ -165,87 +176,37 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         info!("Max conversations limit set to {}", max);
     }
 
+    let default_headers =
+        HeaderMap::from_iter(vec![(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US"))]);
+
+    let cookies = reqwest::cookie::Jar::default();
+    cookies.add_cookie_str(
+        format!("current_user_session_token={}", session_token).as_str(),
+        &jelly_team_url,
+    );
+    let client = Client::builder()
+        .user_agent("jelly-stats")
+        .default_headers(default_headers)
+        .cookie_provider(Arc::new(cookies))
+        .build()?;
+
     loop {
         info!(
             "Fetching jelly statistics at {}",
             Utc::now().format("%Y-%m-%d %H:%M:%S")
         );
-        let conversations: Vec<Conversation> = client
-            .all_conversations(
-                &ConversationListOptions {
-                    mailbox_id: target_mailbox.clone(),
-                    limit: Some(100),
-                    ..Default::default()
-                },
-                max_conversations,
-            )?
-            .into_iter()
-            .collect();
 
-        let now = Utc::now();
-        let mut new_conversations_per_day = BTreeMap::new();
-        let mut new_conversations_last_24h = 0;
-        let mut hang_times = Vec::new();
-        let mut member_message_counts: HashMap<String, (String, u64)> = HashMap::new();
-        for convo in conversations.iter() {
-            // Bucket conversations into the date they were created
-            let day = convo.created_at.date_naive();
-            *new_conversations_per_day.entry(day).or_insert(0) += 1;
-            // Also track the new convos in the past 24h
-            if now - convo.created_at < chrono::Duration::hours(24) {
-                new_conversations_last_24h += 1;
-            }
+        let response = client
+            .get("https://app.letsjelly.com/hack-club-stardance/statistics")
+            .send()?
+            .text()?;
 
-            let detail = client.get_conversation(&convo.id)?;
-            if let Some(hang_time) = hang_time_seconds(&detail) {
-                hang_times.push(hang_time);
-            }
-            for msg in &detail.messages {
-                if let Some(Sender::Member {
-                    ref id, ref name, ..
-                }) = msg.sender
-                    && now - msg.sent_at < chrono::Duration::hours(24)
-                {
-                    let entry = member_message_counts
-                        .entry(id.clone())
-                        .or_insert((name.clone(), 0));
-                    entry.1 += 1;
-                }
-            }
-        }
+        info!("{response}");
 
-        let hang_time = calculate_hang_times(&hang_times);
-
-        let leaderboard = {
-            let mut entries: Vec<LeaderboardEntry> = member_message_counts
-                .into_values()
-                .map(|(name, count)| LeaderboardEntry { name, count })
-                .collect();
-            entries.sort_by(|a, b| b.count.cmp(&a.count));
-            entries.truncate(10);
-            entries
-        };
-
-        {
-            let new_stats = Stats {
-                open_conversations: conversations
-                    .iter()
-                    .filter(|c| c.status == ConversationStatus::Open)
-                    .count() as u64,
-                total_conversations: conversations.len() as u64,
-                new_conversations_last_24h,
-                new_conversations_per_day,
-                hang_time,
-                leaderboard,
-            };
-            *stats.write().unwrap() = Some(new_stats.clone());
-            debug!("Latest stats: {:?}", new_stats);
-        }
-
-        info!(
-            "Successfully fetched statistics, {} conversations found",
-            conversations.len()
-        );
+        // info!(
+        //     "Successfully fetched statistics, {} conversations found",
+        //     conversations.len()
+        // );
 
         thread::sleep(scrape_interval);
     }
