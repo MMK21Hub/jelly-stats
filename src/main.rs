@@ -201,7 +201,9 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 hang_times.push(hang_time);
             }
             for msg in &detail.messages {
-                if let Some(Sender::Member { ref id, ref name, .. }) = msg.sender
+                if let Some(Sender::Member {
+                    ref id, ref name, ..
+                }) = msg.sender
                     && now - msg.sent_at < chrono::Duration::hours(24)
                 {
                     let entry = member_message_counts
@@ -272,11 +274,10 @@ async fn main() -> Result<()> {
     {
         let stats_for_slack = stats.clone();
         tokio::spawn(async move {
-            use std::time::Duration;
             use chrono::Utc;
+            use std::time::Duration;
 
-            let slack_config = SlackConfig::from_env()
-                .expect("Failed to load Slack config");
+            let slack_config = SlackConfig::from_env().expect("Failed to load Slack config");
             let mut last_posted_date: Option<chrono::NaiveDate> = None;
 
             loop {
@@ -284,9 +285,7 @@ async fn main() -> Result<()> {
                 let today = now.date_naive();
                 let current_time = now.time();
 
-                if current_time >= slack_config.post_time
-                    && last_posted_date != Some(today)
-                {
+                if current_time >= slack_config.post_time && last_posted_date != Some(today) {
                     let leaderboard = stats_for_slack
                         .read()
                         .unwrap()
