@@ -57,8 +57,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Author
 
-Available under the MIT License.
+&copy; Hack Club and [contributors](https://github.com/MMK21Hub/jelly-stats/graphs/contributors), available under the MIT License.
 
-Developed by Mish for [Hack Club](https://hackclub.com/) and the [Hack Club Stardance Challenge](https://stardance.space/r-c7t38).
+Made with <3 by Mish for [Hack Club](https://hackclub.com/) and the [Hack Club Stardance Challenge](https://stardance.space/r-c7t38).
 
 If you're a teen and reading this, you should check out [Stardance](https://stardance.space/r-c7t38)! (running June&ndash;Sept 2026)
