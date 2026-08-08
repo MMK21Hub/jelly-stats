@@ -201,13 +201,13 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             .send()?
             .text()?;
 
-        println!("{}", &response);
+        // println!("{}", &response);
 
         let dom = tl::parse(&response, tl::ParserOptions::default())
             .context("failed to parse HTML response")?;
         let parser = dom.parser();
         let statistics_cards = dom
-            .query_selector(".statistics-section .statistics-card")
+            .query_selector(".statistics-card")
             .context("failed to find statistics cards in HTML")?;
         debug!(
             "Found {} statistics cards",
@@ -223,6 +223,13 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 .get(parser)
                 .and_then(|e| e.as_tag())
                 .context("failed to get statistics card element")?;
+            debug!(
+                "Found statistics card: {}",
+                card.outer_html(parser)
+                    .split_whitespace()
+                    .collect::<Vec<&str>>()
+                    .join(" ")
+            );
             let value = card
                 .query_selector(parser, ".statistics-card-value")
                 .and_then(|mut iter| iter.next())
@@ -234,16 +241,14 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
                 .and_then(|node| node.get(parser))
                 .context("failed to get statistics card label")?;
             let label = label.inner_text(parser).to_lowercase();
-            let value: u64 = value
-                .inner_text(parser)
-                .parse()
-                .context("failed to parse statistics card value")?;
+            let value: Result<u64, _> = value.inner_text(parser).parse();
             if label.contains("new conversations") {
-                new_conversations = Some(value);
+                new_conversations =
+                    Some(value.context("failed to parse new conversations stat value")?);
             } else if label.contains("open now") {
-                open_now = Some(value);
+                open_now = Some(value.context("failed to parse open now stat value")?);
             } else if label.contains("awaiting reply") {
-                awaiting_reply = Some(value);
+                awaiting_reply = Some(value.context("failed to parse awaiting reply stat value")?);
             }
         }
 
@@ -252,6 +257,15 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         } else {
             log::error!("Failed to fetch open conversations count");
         }
+
+        stats.write().unwrap().replace(Stats {
+            open_conversations: open_now.context("failed to fetch open conversations count")?,
+            total_conversations: 0,
+            new_conversations_last_24h: 0,
+            new_conversations_per_day: BTreeMap::new(),
+            hang_time: None,
+            leaderboard: Vec::new(),
+        });
 
         thread::sleep(scrape_interval);
     }
