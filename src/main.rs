@@ -140,15 +140,15 @@ async fn stats_json(State(stats): State<SharedStats>) -> impl IntoResponse {
 }
 
 fn scrape_loop(stats: SharedStats) -> Result<()> {
-    // let client = JellyClient::new(
-    //     Url::parse(
-    //         &std::env::var("JELLY_API_URL").unwrap_or("https://app.letsjelly.com/api".into()),
-    //     )?,
-    //     std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
-    // )?;
+    let jelly = JellyClient::new(
+        Url::parse(
+            &std::env::var("JELLY_API_URL").unwrap_or("https://app.letsjelly.com/api".into()),
+        )?,
+        std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
+    )?;
     let jelly_team_url = Url::parse(
         format!(
-            "https://app.letsjelly.com/{}",
+            "https://app.letsjelly.com/{}/",
             std::env::var("JELLY_TEAM").context("JELLY_TEAM must be set")?
         )
         .as_str(),
@@ -184,7 +184,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         format!("current_user_session_token={}", session_token).as_str(),
         &jelly_team_url,
     );
-    let client = Client::builder()
+    let http = Client::builder()
         .user_agent("jelly-stats")
         .default_headers(default_headers)
         .cookie_provider(Arc::new(cookies))
@@ -196,12 +196,9 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             Utc::now().format("%Y-%m-%d %H:%M:%S")
         );
 
-        let response = client
-            .get("https://app.letsjelly.com/hack-club-stardance/statistics")
-            .send()?
-            .text()?;
-
-        // println!("{}", &response);
+        let statistics_url = jelly_team_url.join("statistics")?;
+        debug!("Fetching Jelly statistics page at {}", statistics_url);
+        let response = http.get(statistics_url).send()?.text()?;
 
         let dom = tl::parse(&response, tl::ParserOptions::default())
             .context("failed to parse HTML response")?;
@@ -252,14 +249,15 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             }
         }
 
-        if let Some(open_convos) = open_now {
-            info!("Fetched statistics, {} open conversations", open_convos);
-        } else {
-            log::error!("Failed to fetch open conversations count");
-        }
+        let open_conversations = open_now.context("failed to fetch open conversations count")?;
+
+        info!(
+            "Fetched statistics, {} open conversations",
+            open_conversations
+        );
 
         stats.write().unwrap().replace(Stats {
-            open_conversations: open_now.context("failed to fetch open conversations count")?,
+            open_conversations,
             total_conversations: 0,
             new_conversations_last_24h: 0,
             new_conversations_per_day: BTreeMap::new(),
