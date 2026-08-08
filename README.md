@@ -16,6 +16,7 @@ The following environment variables are accepted:
 | `JELLY_API_KEY` **(required)** | A valid Jelly API token for your Jelly workspace. Note that only admins can create or use API keys. | N/A |
 | `JELLY_SESSION_TOKEN` **(required)** | A Jelly session token used for scraping. Obtained from the `current_user_session_token` browser cookie. Should look like URL-encoded base64. | N/A |
 | `JELLY_TEAM` **(required)** | The slug for your Jelly team (as seen in browser URLs when logged in) e.g. `hack-club` | N/A |
+| `CONTACT_EMAIL` **(required)** | An email address that allows the person running the `jelly-stats` instance to be contacted if required. For details, see the [From HTTP header](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/From). | N/A |
 | `RUST_LOG` (recommended)       | Set the log level. Recommend setting to `info`.                                             | Empty (no logs)                  |
 | `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `30m` (30 minutes) |
 | `JELLY_API_URL` | The base URL of the Jelly API. | <https://app.letsjelly.com/api>  |

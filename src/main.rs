@@ -4,7 +4,7 @@ use chrono::Utc;
 use jelly_stats::jelly::{ConversationListOptions, JellyClient};
 use log::{debug, info};
 use reqwest::blocking::Client;
-use reqwest::header::{ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
+use reqwest::header::{ACCEPT_LANGUAGE, FROM, HeaderMap, HeaderValue};
 use serde::Serialize;
 use std::{
     net::SocketAddr,
@@ -102,16 +102,23 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         .context("SCRAPE_INTERVAL must be a valid duration (e.g. 10m, 60s)")?
         .unwrap_or(std::time::Duration::from_mins(30));
 
-    let default_headers =
-        HeaderMap::from_iter(vec![(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US"))]);
+    let contact_email = HeaderValue::from_str(
+        &std::env::var("CONTACT_EMAIL").context("CONTACT_EMAIL must be set")?,
+    )
+    .context("CONTACT_EMAIL must be a valid HTTP header value")?;
+    let default_headers = HeaderMap::from_iter(vec![
+        (ACCEPT_LANGUAGE, HeaderValue::from_static("en-US")),
+        (FROM, contact_email),
+    ]);
 
     let cookies = reqwest::cookie::Jar::default();
     cookies.add_cookie_str(
         format!("current_user_session_token={}", session_token).as_str(),
         &jelly_team_url,
     );
+    let user_agent = format!("jelly-stats/{}", env!("CARGO_PKG_VERSION"));
     let http = Client::builder()
-        .user_agent("jelly-stats")
+        .user_agent(user_agent)
         .default_headers(default_headers)
         .cookie_provider(Arc::new(cookies))
         .build()?;
