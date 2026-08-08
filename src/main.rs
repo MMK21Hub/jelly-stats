@@ -251,25 +251,24 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
 
         let open_conversations = open_now.context("failed to fetch open conversations count")?;
 
-        info!(
-            "Fetched statistics, {} open conversations",
-            open_conversations
-        );
-
         debug!("Counting total conversations using Jelly API");
         let total_conversations = jelly
             .count_conversations(&ConversationListOptions::default())
             .context("failed to count total conversations using Jelly API")?;
 
-        stats.write().unwrap().replace(Stats {
+        let new_stats = Stats {
             open_conversations,
             total_conversations: total_conversations as u64,
             new_conversations_last_24h: 0, // TODO all of these
             new_conversations_per_day: BTreeMap::new(),
             hang_time: None,
             leaderboard: Vec::new(),
-        });
+        };
 
+        info!("Successfully fetched statistics, {total_conversations} conversations found");
+        debug!("Statistics: {:?}", new_stats);
+
+        stats.write().unwrap().replace(new_stats);
         thread::sleep(scrape_interval);
     }
 }

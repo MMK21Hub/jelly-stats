@@ -295,9 +295,12 @@ impl JellyClient {
         options: &ConversationListOptions,
     ) -> Result<usize, JellyError> {
         let mut count = 0usize;
+        let mut api_requests = 0usize;
         self.for_each_conversation_page(options, None, |page| {
+            api_requests += 1;
             count += page.conversations.len();
         })?;
+        debug!("Counted conversations ({} API requests)", api_requests);
         Ok(count)
     }
 
