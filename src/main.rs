@@ -1,28 +1,23 @@
+use anyhow::{Context, Result};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+use chrono::{NaiveDate, Utc};
+use jelly_stats::jelly::{ConversationListOptions, JellyClient};
+use log::{debug, info};
+use reqwest::blocking::Client;
+use reqwest::header::{ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
+use serde::Serialize;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
     thread,
 };
+use url::Url;
 
 #[cfg(feature = "slack")]
 mod slack;
-
 #[cfg(feature = "slack")]
 use slack::SlackConfig;
-
-use anyhow::{Context, Result};
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
-use chrono::{NaiveDate, Utc};
-use jelly_stats::jelly::{
-    Conversation, ConversationDetail, ConversationListOptions, ConversationStatus, JellyClient,
-    Sender,
-};
-use log::{debug, info};
-use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, COOKIE, HeaderMap, HeaderValue, USER_AGENT};
-use reqwest::{blocking::Client, cookie::Jar};
-use serde::Serialize;
-use url::Url;
 
 #[derive(Clone, Serialize, Debug)]
 struct Stats {
@@ -47,46 +42,6 @@ pub struct LeaderboardEntry {
 }
 
 type SharedStats = Arc<RwLock<Option<Stats>>>;
-
-fn hang_time_seconds(detail: &ConversationDetail) -> Option<i64> {
-    let first_message = detail
-        .messages
-        .iter()
-        .min_by(|left, right| left.sent_at.cmp(&right.sent_at))?;
-    let first_response = detail
-        .messages
-        .iter()
-        .filter(|message| message.sent_at > first_message.sent_at)
-        .find(|message| matches!(message.sender, Some(Sender::Member { .. })))?;
-
-    Some(
-        first_response
-            .sent_at
-            .signed_duration_since(first_message.sent_at)
-            .num_seconds(),
-    )
-}
-
-fn calculate_hang_times(values: &[i64]) -> Option<HangTimeStats> {
-    if values.is_empty() {
-        return None;
-    }
-
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let mean_seconds = sorted.iter().sum::<i64>() as f64 / sorted.len() as f64;
-    let median_seconds = if sorted.len() % 2 == 0 {
-        let middle = sorted.len() / 2;
-        (sorted[middle - 1] as f64 + sorted[middle] as f64) / 2.0
-    } else {
-        sorted[sorted.len() / 2] as f64
-    };
-
-    Some(HangTimeStats {
-        mean_seconds,
-        median_seconds,
-    })
-}
 
 async fn metrics(State(stats): State<SharedStats>) -> String {
     let s = stats.read().unwrap();
