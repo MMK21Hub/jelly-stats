@@ -89,13 +89,10 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         )?,
         std::env::var("JELLY_API_KEY").context("JELLY_API_KEY must be set")?,
     )?;
-    let jelly_team_url = Url::parse(
-        format!(
-            "https://app.letsjelly.com/{}/",
-            std::env::var("JELLY_TEAM").context("JELLY_TEAM must be set")?
-        )
-        .as_str(),
-    )?;
+    let jelly_base_url =
+        Url::parse(&std::env::var("JELLY_APP_URL").unwrap_or("https://app.letsjelly.com/".into()))?;
+    let jelly_team_url = jelly_base_url
+        .join(&(std::env::var("JELLY_TEAM").context("JELLY_TEAM must be set")? + "/"))?;
     let session_token =
         std::env::var("JELLY_SESSION_TOKEN").context("JELLY_SESSION_TOKEN must be set")?;
     let scrape_interval = std::env::var("SCRAPE_INTERVAL")

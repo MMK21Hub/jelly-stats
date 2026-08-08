@@ -18,7 +18,8 @@ The following environment variables are accepted:
 | `JELLY_TEAM` **(required)** | The slug for your Jelly team (as seen in browser URLs when logged in) e.g. `hack-club` | N/A |
 | `RUST_LOG` (recommended)       | Set the log level. Recommend setting to `info`.                                             | Empty (no logs)                  |
 | `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `10m` (10 minutes) |
-| `JELLY_API_URL`                | The base URL of the Jelly API.                                                              | <https://app.letsjelly.com/api>  |
+| `JELLY_API_URL` | The base URL of the Jelly API. | <https://app.letsjelly.com/api>  |
+| `JELLY_APP_URL` | The base URL of the Jelly web app. | <https://app.letsjelly.com/>  |
 | `SLACK_BOT_TOKEN`               | Slack bot token (starts with `xoxb-...`). Only used when built with the `slack` feature.    | N/A                              |
 | `SLACK_CHANNEL_ID`              | Slack channel ID to post the daily leaderboard to (e.g. `C0123456789`). Only used when built with the `slack` feature. | N/A |
 | `SLACK_POST_TIME`               | UTC time (HH:MM) to post the daily leaderboard. Defaults to the time of startup. Only used when built with the `slack` feature. | Startup time |
