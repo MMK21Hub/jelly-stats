@@ -17,7 +17,7 @@ The following environment variables are accepted:
 | `JELLY_SESSION_TOKEN` **(required)** | A Jelly session token used for scraping. Obtained from the `current_user_session_token` browser cookie. Should look like URL-encoded base64. | N/A |
 | `JELLY_TEAM` **(required)** | The slug for your Jelly team (as seen in browser URLs when logged in) e.g. `hack-club` | N/A |
 | `RUST_LOG` (recommended)       | Set the log level. Recommend setting to `info`.                                             | Empty (no logs)                  |
-| `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `10m` (10 minutes) |
+| `SCRAPE_INTERVAL`              | How long to wait between scrapes of the Jelly API. Jelly may rate-limit you if you scrape too frequently. Parsed using [`humantime`](https://docs.rs/humantime/latest/humantime/fn.parse_duration.html). | `30m` (30 minutes) |
 | `JELLY_API_URL` | The base URL of the Jelly API. | <https://app.letsjelly.com/api>  |
 | `JELLY_APP_URL` | The base URL of the Jelly web app. | <https://app.letsjelly.com/>  |
 | `SLACK_BOT_TOKEN`               | Slack bot token (starts with `xoxb-...`). Only used when built with the `slack` feature.    | N/A                              |

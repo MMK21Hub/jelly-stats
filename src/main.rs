@@ -100,7 +100,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         .map(|s| humantime::parse_duration(&s))
         .transpose()
         .context("SCRAPE_INTERVAL must be a valid duration (e.g. 10m, 60s)")?
-        .unwrap_or(std::time::Duration::from_mins(10));
+        .unwrap_or(std::time::Duration::from_mins(30));
     let max_conversations = std::env::var("MAX_CONVERSATIONS")
         .ok()
         .map(|s| s.parse::<u32>())
