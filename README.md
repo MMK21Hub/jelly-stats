@@ -23,7 +23,6 @@ The following environment variables are accepted:
 | `SLACK_BOT_TOKEN`               | Slack bot token (starts with `xoxb-...`). Only used when built with the `slack` feature.    | N/A                              |
 | `SLACK_CHANNEL_ID`              | Slack channel ID to post the daily leaderboard to (e.g. `C0123456789`). Only used when built with the `slack` feature. | N/A |
 | `SLACK_POST_TIME`               | UTC time (HH:MM) to post the daily leaderboard. Defaults to the time of startup. Only used when built with the `slack` feature. | Startup time |
-| `MAX_CONVERSATIONS`             | Stop pagination after discovering this many conversations. Useful for testing to avoid long API fetches. | Empty (no limit) |
 
 On startup, environment variables are automatically loaded from a `.env` file in the working directory, but if your deployment platform (e.g. Coolify, Docker Compose) has a way to set environment variables you probably want to use that.
 

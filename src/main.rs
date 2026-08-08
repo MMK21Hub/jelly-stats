@@ -101,14 +101,6 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         .transpose()
         .context("SCRAPE_INTERVAL must be a valid duration (e.g. 10m, 60s)")?
         .unwrap_or(std::time::Duration::from_mins(30));
-    let max_conversations = std::env::var("MAX_CONVERSATIONS")
-        .ok()
-        .map(|s| s.parse::<u32>())
-        .transpose()
-        .context("MAX_CONVERSATIONS must be a valid positive integer")?;
-    if let Some(max) = max_conversations {
-        info!("Max conversations limit set to {}", max);
-    }
 
     let default_headers =
         HeaderMap::from_iter(vec![(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US"))]);
