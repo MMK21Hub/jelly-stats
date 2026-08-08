@@ -4,7 +4,7 @@ WORKDIR /app
 COPY ./src ./src
 COPY ./Cargo.toml ./Cargo.lock ./
 
-RUN cargo build --release --features slack
+RUN cargo build --release
 
 FROM debian:bullseye-slim AS runner
 
