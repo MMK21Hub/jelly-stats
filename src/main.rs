@@ -98,7 +98,6 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
     )?;
     let session_token =
         std::env::var("JELLY_SESSION_TOKEN").context("JELLY_SESSION_TOKEN must be set")?;
-    let target_mailbox = std::env::var("JELLY_MAILBOX").ok();
     let scrape_interval = std::env::var("SCRAPE_INTERVAL")
         .ok()
         .map(|s| humantime::parse_duration(&s))
@@ -110,11 +109,6 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
         .map(|s| s.parse::<u32>())
         .transpose()
         .context("MAX_CONVERSATIONS must be a valid positive integer")?;
-    if let Some(slug) = &target_mailbox {
-        info!("Using Jelly mailbox: {}", slug);
-    } else {
-        info!("No Jelly mailbox specified, fetching all conversations");
-    }
     if let Some(max) = max_conversations {
         info!("Max conversations limit set to {}", max);
     }
