@@ -98,13 +98,25 @@ pub enum ConversationStatus {
     Trash,
 }
 
-#[derive(Debug, Default, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ConversationListOptions {
     pub status: Option<ConversationStatus>,
     pub label_id: Option<String>,
     pub mailbox_id: Option<String>,
     pub limit: Option<u32>,
     pub cursor: Option<String>,
+}
+
+impl Default for ConversationListOptions {
+    fn default() -> Self {
+        Self {
+            status: None,
+            label_id: None,
+            mailbox_id: None,
+            limit: Some(100), // 100 is the highest items/page the API will return
+            cursor: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

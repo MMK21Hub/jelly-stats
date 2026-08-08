@@ -256,10 +256,15 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             open_conversations
         );
 
+        debug!("Counting total conversations using Jelly API");
+        let total_conversations = jelly
+            .count_conversations(&ConversationListOptions::default())
+            .context("failed to count total conversations using Jelly API")?;
+
         stats.write().unwrap().replace(Stats {
             open_conversations,
-            total_conversations: 0,
-            new_conversations_last_24h: 0,
+            total_conversations: total_conversations as u64,
+            new_conversations_last_24h: 0, // TODO all of these
             new_conversations_per_day: BTreeMap::new(),
             hang_time: None,
             leaderboard: Vec::new(),
