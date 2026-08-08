@@ -12,7 +12,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: MMK21Hub/jelly-stats
+  IMAGE_NAME: mmk21hub/jelly-stats
 
 jobs:
   build:
