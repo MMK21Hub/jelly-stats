@@ -23,8 +23,10 @@ jobs:
         include:
           - platform: linux/amd64
             runs-on: ubuntu-latest
+            slug: amd64
           - platform: linux/arm64
             runs-on: ubuntu-24.04-arm
+            slug: arm64
     runs-on: ${{ matrix.runs-on }}
     permissions:
       contents: read
@@ -54,10 +56,6 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
             type=semver,pattern={{version}}
 
-      - name: Normalize platform for tag/filename
-        id: plat
-        run: echo "slug=$(echo "${{ matrix.platform }}" | tr '/' '-')" >> "$GITHUB_OUTPUT"
-
       - name: Build and push Docker image (temp tag)
         id: build
         uses: docker/build-push-action@v6
@@ -65,7 +63,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ steps.plat.outputs.slug }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ matrix.slug }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -73,12 +71,12 @@ jobs:
       - name: Export digest
         run: |
           mkdir -p "${{ runner.temp }}/digests"
-          echo "${{ steps.build.outputs.digest }}" > "${{ runner.temp }}/digests/${{ steps.plat.outputs.slug }}"
+          echo "${{ steps.build.outputs.digest }}" > "${{ runner.temp }}/digests/${{ matrix.slug }}"
 
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.platform }}
+          name: digests-${{ matrix.slug }}
           path: ${{ runner.temp }}/digests/*
           retention-days: 1
 
