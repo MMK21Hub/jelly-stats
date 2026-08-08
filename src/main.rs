@@ -1,13 +1,12 @@
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
-use chrono::{NaiveDate, Utc};
+use chrono::Utc;
 use jelly_stats::jelly::{ConversationListOptions, JellyClient};
 use log::{debug, info};
 use reqwest::blocking::Client;
 use reqwest::header::{ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
 use serde::Serialize;
 use std::{
-    collections::BTreeMap,
     net::SocketAddr,
     sync::{Arc, RwLock},
     thread,
@@ -23,17 +22,19 @@ use slack::SlackConfig;
 struct Stats {
     open_conversations: u64,
     total_conversations: u64,
-    new_conversations_last_24h: u64,
-    new_conversations_per_day: BTreeMap<NaiveDate, u64>,
-    hang_time: Option<HangTimeStats>,
-    leaderboard: Vec<LeaderboardEntry>,
+    awaiting_reply: u64,
+    // TODO consider adding these back
+    // new_conversations_last_24h: u64,
+    // new_conversations_per_day: BTreeMap<NaiveDate, u64>,
+    // hang_time: Option<HangTimeStats>,
+    // leaderboard: Vec<LeaderboardEntry>,
 }
 
-#[derive(Debug, Serialize, Clone)]
-struct HangTimeStats {
-    mean_seconds: f64,
-    median_seconds: f64,
-}
+// #[derive(Debug, Serialize, Clone)]
+// struct HangTimeStats {
+//     mean_seconds: f64,
+//     median_seconds: f64,
+// }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LeaderboardEntry {
@@ -47,21 +48,6 @@ async fn metrics(State(stats): State<SharedStats>) -> String {
     let s = stats.read().unwrap();
     match s.as_ref() {
         Some(s) => {
-            let hang_times = match &s.hang_time {
-                Some(hang_time) => format!(
-                    "\
-                    # HELP jelly_hang_time_seconds_mean Mean hang time between the first email and the first staff reply\n\
-                    # TYPE jelly_hang_time_seconds_mean gauge\n\
-                    jelly_hang_time_seconds_mean {}\n\
-                    # HELP jelly_hang_time_seconds_median Median hang time between the first email and the first staff reply\n\
-                    # TYPE jelly_hang_time_seconds_median gauge\n\
-                    jelly_hang_time_seconds_median {}\n\
-                    ",
-                    hang_time.mean_seconds, hang_time.median_seconds
-                ),
-                None => format!(""),
-            };
-
             format!(
                 "\
                 # HELP jelly_open_conversations Current number of open conversations\n\
@@ -70,9 +56,11 @@ async fn metrics(State(stats): State<SharedStats>) -> String {
                 # HELP jelly_total_conversations Current number of conversations\n\
                 # TYPE jelly_total_conversations gauge\n\
                 jelly_total_conversations {}\n\
-                {}\n\
+                # HELP jelly_awaiting_reply Current number of conversations awaiting reply from the team\n\
+                # TYPE jelly_awaiting_reply gauge\n\
+                jelly_awaiting_reply {}\n
                 ",
-                s.open_conversations, s.total_conversations, hang_times
+                s.open_conversations, s.total_conversations, s.awaiting_reply
             )
         }
         None => format!(""),
@@ -166,7 +154,7 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             statistics_cards.clone().count()
         );
 
-        let mut new_conversations: Option<u64> = None;
+        // let mut new_conversations: Option<u64> = None;
         let mut open_now: Option<u64> = None;
         let mut awaiting_reply: Option<u64> = None;
 
@@ -195,8 +183,8 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             let label = label.inner_text(parser).to_lowercase();
             let value: Result<u64, _> = value.inner_text(parser).parse();
             if label.contains("new conversations") {
-                new_conversations =
-                    Some(value.context("failed to parse new conversations stat value")?);
+                // new_conversations =
+                //     Some(value.context("failed to parse new conversations stat value")?);
             } else if label.contains("open now") {
                 open_now = Some(value.context("failed to parse open now stat value")?);
             } else if label.contains("awaiting reply") {
@@ -204,20 +192,15 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             }
         }
 
-        let open_conversations = open_now.context("failed to fetch open conversations count")?;
-
         debug!("Counting total conversations using Jelly API");
         let total_conversations = jelly
             .count_conversations(&ConversationListOptions::default())
             .context("failed to count total conversations using Jelly API")?;
 
         let new_stats = Stats {
-            open_conversations,
+            open_conversations: open_now.context("failed to fetch open conversations count")?,
             total_conversations: total_conversations as u64,
-            new_conversations_last_24h: 0, // TODO all of these
-            new_conversations_per_day: BTreeMap::new(),
-            hang_time: None,
-            leaderboard: Vec::new(),
+            awaiting_reply: awaiting_reply.context("failed to fetch awaiting reply count")?,
         };
 
         info!("Successfully fetched statistics, {total_conversations} conversations found");
