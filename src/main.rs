@@ -201,12 +201,57 @@ fn scrape_loop(stats: SharedStats) -> Result<()> {
             .send()?
             .text()?;
 
-        info!("{response}");
+        println!("{}", &response);
 
-        // info!(
-        //     "Successfully fetched statistics, {} conversations found",
-        //     conversations.len()
-        // );
+        let dom = tl::parse(&response, tl::ParserOptions::default())
+            .context("failed to parse HTML response")?;
+        let parser = dom.parser();
+        let statistics_cards = dom
+            .query_selector(".statistics-section .statistics-card")
+            .context("failed to find statistics cards in HTML")?;
+        debug!(
+            "Found {} statistics cards",
+            statistics_cards.clone().count()
+        );
+
+        let mut new_conversations: Option<u64> = None;
+        let mut open_now: Option<u64> = None;
+        let mut awaiting_reply: Option<u64> = None;
+
+        for card in statistics_cards {
+            let card = card
+                .get(parser)
+                .and_then(|e| e.as_tag())
+                .context("failed to get statistics card element")?;
+            let value = card
+                .query_selector(parser, ".statistics-card-value")
+                .and_then(|mut iter| iter.next())
+                .and_then(|node| node.get(parser))
+                .context("failed to get statistics card value")?;
+            let label = card
+                .query_selector(parser, ".statistics-card-label")
+                .and_then(|mut iter| iter.next())
+                .and_then(|node| node.get(parser))
+                .context("failed to get statistics card label")?;
+            let label = label.inner_text(parser).to_lowercase();
+            let value: u64 = value
+                .inner_text(parser)
+                .parse()
+                .context("failed to parse statistics card value")?;
+            if label.contains("new conversations") {
+                new_conversations = Some(value);
+            } else if label.contains("open now") {
+                open_now = Some(value);
+            } else if label.contains("awaiting reply") {
+                awaiting_reply = Some(value);
+            }
+        }
+
+        if let Some(open_convos) = open_now {
+            info!("Fetched statistics, {} open conversations", open_convos);
+        } else {
+            log::error!("Failed to fetch open conversations count");
+        }
 
         thread::sleep(scrape_interval);
     }
